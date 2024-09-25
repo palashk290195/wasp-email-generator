@@ -1,0 +1,1 @@
+# wasp-email-generator
