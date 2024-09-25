@@ -9,7 +9,7 @@ import {
   getAllTasksByUser,
 } from 'wasp/client/operations';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { CgSpinner } from 'react-icons/cg';
 import { TiDelete } from 'react-icons/ti';
 import type { GeneratedSchedule, MainTask, SubTask } from './schedule';
@@ -17,6 +17,17 @@ import { cn } from '../client/cn';
 
 export default function DemoAppPage() {
   const [emailContent, setEmailContent] = useState<string>('');
+
+  useEffect(() => {
+    // Fetch the HTML file from the public folder
+    fetch("/templates/EBooks.html")
+      .then((response) => response.text())
+      .then((html) => {
+        setEmailContent(html); // Store the fetched HTML content
+      })
+      .catch((error) => console.error("Error fetching HTML:", error));
+  }, []);
+
   return (
     <div className='container mx-auto px-4 py-8'>
       <h1 className='text-4xl font-bold mb-8'>
