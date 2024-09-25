@@ -16,25 +16,26 @@ import type { GeneratedSchedule, MainTask, SubTask } from './schedule';
 import { cn } from '../client/cn';
 
 export default function DemoAppPage() {
+  const [emailContent, setEmailContent] = useState<string>('');
   return (
-    <div className='py-10 lg:mt-10'>
-      <div className='mx-auto max-w-7xl px-6 lg:px-8'>
-        <div className='mx-auto max-w-4xl text-center'>
-          <h2 className='mt-2 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl dark:text-white'>
-            <span className='text-yellow-500'>AI</span> Day Scheduler
-          </h2>
-        </div>
-        <p className='mx-auto mt-6 max-w-2xl text-center text-lg leading-8 text-gray-600 dark:text-white'>
-          This example app uses OpenAI's chat completions with function calling to return a structured JSON object. Try
-          it out, enter your day's tasks, and let AI do the rest!
-        </p>
-        {/* begin AI-powered Todo List */}
-        <div className='my-8 border rounded-3xl border-gray-900/10 dark:border-gray-100/10'>
-          <div className='sm:w-[90%] md:w-[70%] lg:w-[50%] py-10 px-6 mx-auto my-8 space-y-10'>
+    <div className='container mx-auto px-4 py-8'>
+      <h1 className='text-4xl font-bold mb-8'>
+        <span className='text-yellow-500'>AI</span> HTML Email Generator
+      </h1>
+      <div className='flex space-x-8'>
+        <div className='w-1/2'>
+          <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
             <NewTaskForm handleCreateTask={createTask} />
           </div>
         </div>
-        {/* end AI-powered Todo List */}
+        <div className='w-1/2'>
+          <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
+            <h3 className='text-2xl font-semibold mb-4'>HTML Email Preview</h3>
+            <div className='bg-white p-4 rounded-md shadow-md'>
+              <div dangerouslySetInnerHTML={{ __html: emailContent }} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
