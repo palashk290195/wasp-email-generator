@@ -172,6 +172,11 @@ action updateTask {
   entities: [Task]
 }
 
+action updateChat {
+  fn: import { updateChat } from "@src/demo-ai-app/operations",
+  entities: [User, ChatCommand]
+}
+
 query getGptResponses {
   fn: import { getGptResponses } from "@src/demo-ai-app/operations",
   entities: [User, GptResponse]
@@ -180,6 +185,11 @@ query getGptResponses {
 query getAllTasksByUser {
   fn: import { getAllTasksByUser } from "@src/demo-ai-app/operations",
   entities: [Task]
+}
+
+query getEmailTemplates {
+  fn: import { getEmailTemplates } from "@src/demo-ai-app/operations",
+  entities: [User]
 }
 //#endregion
 

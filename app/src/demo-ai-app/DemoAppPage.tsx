@@ -7,9 +7,11 @@ import {
   createTask,
   useQuery,
   getAllTasksByUser,
+  getEmailTemplates,
+  updateChat
 } from 'wasp/client/operations';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import { CgSpinner } from 'react-icons/cg';
 import { TiDelete } from 'react-icons/ti';
 import type { GeneratedSchedule, MainTask, SubTask } from './schedule';
@@ -17,38 +19,307 @@ import { cn } from '../client/cn';
 
 export default function DemoAppPage() {
   const [emailContent, setEmailContent] = useState<string>('');
+  const [chatHistory, setChatHistory]= useState<Array<{ role: string; content: string}>>([]);
+  const [userMessage, setUserMessage] = useState<string>('');
+  const emailTemplates = useQuery(getEmailTemplates);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [isEmailUpdating, setIsEmailUpdating] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string>('')
 
-  useEffect(() => {
-    // Fetch the HTML file from the public folder
-    fetch("/templates/EBooks.html")
-      .then((response) => response.text())
-      .then((html) => {
-        setEmailContent(html); // Store the fetched HTML content
-      })
-      .catch((error) => console.error("Error fetching HTML:", error));
-  }, []);
+  const handleUpdateChat = useCallback(async () => {
+    setIsEmailUpdating(true); //Start loading in Email preview screen
+    try {
+      const result = await updateChat({
+        systemPrompt: 'You are an AI assistant that helps with email template modifications. Stick to only responsive HTML email responses. Nothing else at the start or the end, not even html tags',
+        receiverProfileDetails: 'Default receiver',
+        senderProfileDetails: 'Default sender',
+        purpose: 'Email modification',
+        userMessage,
+        logoUrl: logoUrl,
+        userChatHistory: chatHistory.filter(message => message.role === 'user'),
+        emailContent
+      });
 
-  return (
-    <div className='container mx-auto px-4 py-8'>
-      <h1 className='text-4xl font-bold mb-8'>
-        <span className='text-yellow-500'>AI</span> HTML Email Generator
-      </h1>
-      <div className='flex space-x-8'>
-        <div className='w-1/2'>
-          <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
-            <NewTaskForm handleCreateTask={createTask} />
-          </div>
-        </div>
-        <div className='w-1/2'>
-          <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
-            <h3 className='text-2xl font-semibold mb-4'>HTML Email Preview</h3>
-            <div className='bg-white p-4 rounded-md shadow-md'>
-              <div dangerouslySetInnerHTML={{ __html: emailContent }} />
+      if (result.success) {
+        window.alert("success");
+        setEmailContent(result.response);
+        window.alert(result.response);
+        setChatHistory(prev => [...prev, {role: 'user', content: userMessage}, {role: 'assistant', content: result.response}]);
+        setUserMessage('');
+      }
+    } catch (error) {
+      console.error('Error updating chat: ', error);
+    } finally {
+      setIsEmailUpdating(false); //Stop loading regardless of success or failure
+    }
+}, [userMessage, selectedTemplate]);
+
+const handleClearHistory = useCallback(() => {
+  setChatHistory([]);
+}, []);
+
+const handleLogoUpload = useCallback((uploadedLogoUrl: string) => {
+  setLogoUrl(uploadedLogoUrl);
+}, []);
+
+const handlePreviewTemplate = useCallback((template: string) => {
+  fetch(`/templates/${template}`)
+    .then((response) => response.text())
+    .then((html) => {
+      setEmailContent(html);
+    })
+    .catch((error) => console.error("Error fetching HTML:", error));
+}, []);
+
+if (emailTemplates.error) {
+  console.error('Error fetching all email templates: ', emailTemplates.error);
+}
+
+if (emailTemplates.isLoading) {
+  return <div> Loading templates...</div>
+}
+
+return (
+  <div className='container mx-auto px-4 py-8'>
+    <h1 className='text-4xl font-bold mb-8'>
+      <span className='text-yellow-500'>AI</span> HTML Email Generator
+    </h1>
+    <div className='flex space-x-8'>
+      <div className='w-1/2'>
+        <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
+          <LogoUploader onUpload={handleLogoUpload}/>
+          {emailTemplates.data && (
+            <div className="mb-6">
+              <TemplateSelector
+                templates={emailTemplates.data}
+                onPreview={handlePreviewTemplate}
+              />
             </div>
+          )}
+          <div className='flex flex-col gap-3'>
+            <input
+              type='text'
+              className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
+              placeholder='Enter your command to modify the email'
+              value={userMessage}
+              onChange={(e) => setUserMessage(e.target.value)}
+            />
+            <button
+              onClick={handleUpdateChat}
+              className='min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none'
+            >
+              Update Email
+            </button>
+          </div>
+          <div className='mt-6'>
+            <h3 className='text-lg font-semibold mb-2'>Chat History</h3>
+          <div className='max-h-60 overflow-y-auto'>
+              {chatHistory.map((message, index) => (
+                message.role === 'user' ? (
+                  <div key={index} className="mb-2 text-blue-600">
+                    <strong>You: </strong>
+                    {message.content}
+                  </div>
+                ) : null
+              ))}
+            </div>
+            <button
+              onClick={handleClearHistory}
+              className='mt-2 text-sm text-red-600 hover:text-red-800'
+            >
+              Clear History
+            </button>
+          </div>
+          {/* <div>
+            <NewTaskForm handleCreateTask={createTask} />
+          </div> */}
+        </div>
+      </div>
+      <div className='w-1/2'>
+        <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
+          <h3 className='text-2xl font-semibold mb-4'>HTML Email Preview</h3>
+          <div className='bg-white p-4 rounded-md shadow-md'>
+            {/* <div 
+              style={{ 
+                width: '100%', 
+                maxWidth: '100%', 
+                overflow: 'auto',
+                wordWrap: 'break-word' 
+              }} 
+              dangerouslySetInnerHTML={{ __html: emailContent }} 
+            /> */}
+            <EmailPreview content={emailContent} isLoading={isEmailUpdating}/>
           </div>
         </div>
       </div>
     </div>
+  </div>
+  );
+}
+
+
+function LogoUploader({onUpload}: {onUpload: (logoUrl: string) => void}) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target && typeof e.target.result === 'string') {
+          setPreviewUrl(e.target.result);
+          onUpload(e.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  return (
+    <div className="mb-6">
+      <div className='flex items-center gap-3'>
+        <div className="relative flex-grow">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+          <div className="flex items-center">
+            <span className="flex-shrink-0 px-4 py-2 bg-gray-200 text-gray-700 rounded-l-md">Choose file</span>
+            <span className="flex-grow px-4 py-2 bg-[#f5f0ff] text-gray-600 rounded-r-md border border-gray-200">
+              {selectedFile ? selectedFile.name : "Upload logo"}
+            </span>
+          </div>
+        </div>
+        <button
+          type='button'
+          className='min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none'
+        >
+          Upload
+        </button>
+      </div>
+      {selectedFile && (
+        <div className="mt-2 text-sm text-gray-600">
+          Selected file: {selectedFile.name}
+        </div>
+      )}
+      {previewUrl && (
+        <div className="mt-4">
+          <img src={previewUrl} alt="Uploaded logo" className="h-20 w-20 object-contain" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// function LogoUploader({onUpload}: {onUpload: (logoUrl: string) => void}) {
+//   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+//   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+//     if (e.target.files && e.target.files[0]) {
+//       setSelectedFile(e.target.files[0]);
+//     }
+//   };
+
+//   const handleUpload = () => {
+//     if (selectedFile) {
+//       const reader = new FileReader();
+//       reader.onload = (e) => {
+//         if (e.target && typeof e.target.result === 'string') {
+//           onUpload(e.target.result);
+//         }
+//       };
+//       reader.readAsDataURL(selectedFile);
+//     }
+//   };
+
+//   return (
+//     <div className="mb-6">
+//       <h3 className='text-lg font-semibold mb-2'>Upload Logo</h3>
+//       <div className='flex items-center gap-3'>
+//         <input
+//           type="file"
+//           accept="image/*"
+//           onChange={handleFileChange}
+//           className="text-sm text-gray-600 flex-grow rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none"
+//         />
+//         <button
+//           type='button'
+//           onClick={handleUpload}
+//           disabled={!selectedFile}
+//           className='min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none disabled:opacity-50 disabled:cursor-not-allowed'
+//         >
+//           Upload
+//         </button>
+//       </div>
+//       {selectedFile && (
+//         <div className="mt-2 text-sm text-gray-600">
+//           Selected file: {selectedFile.name}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+function TemplateSelector({ templates, onPreview }: {templates: string[], onPreview: (template: string) => void}) {
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  return (
+    <div className='flex items-center gap-3'>
+      <select
+        className='text-sm text-gray-600 flex-grow rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
+        value={selectedTemplate}
+        onChange={(e) => setSelectedTemplate(e.target.value)}
+      >
+        <option value="">Select a template</option>
+        {templates.map((template) => (
+          <option key={template} value={template}>{template}</option>
+        ))}
+      </select>
+      <button
+        type='button'
+        onClick={() => onPreview(selectedTemplate)}
+        disabled={!selectedTemplate}
+        className='min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none'
+      >
+        Preview
+      </button>
+    </div>
+  );
+}
+
+function EmailPreview({ content, isLoading }: { content: string, isLoading: boolean}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (iframeRef.current) {
+      const iframe = iframeRef.current;
+      iframe.srcdoc = content;
+
+      //Adjust iframe height to match content
+      iframe.onload =() => {
+        iframe.style.height = iframe.contentWindow?.document.body.scrollHeight + 'px';
+      };
+    }
+  }, [content]);
+
+  if (isLoading) {
+    return (
+      <div className="w-full h-[400px] flex items-center justify-center bg-gray-100">
+        <CgSpinner className="animate-spin text-4xl text-yellow-500" />
+      </div>
+    );
+  }
+
+  return (
+    <iframe
+      ref={iframeRef}
+      title="Email Preview"
+      className="w-full border-0"
+      style={{ minHeight: '400px'}}
+    />
   );
 }
 
@@ -155,7 +426,7 @@ function NewTaskForm({ handleCreateTask }: { handleCreateTask: typeof createTask
             type='text'
             id='description'
             className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
-            placeholder='Enter task description'
+            placeholder='Add a request to modify email'
             value={description}
             onChange={(e) => setDescription(e.currentTarget.value)}
             onKeyDown={(e) => {
@@ -169,7 +440,7 @@ function NewTaskForm({ handleCreateTask }: { handleCreateTask: typeof createTask
             onClick={handleSubmit}
             className='min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none'
           >
-            Add Task
+            Submit
           </button>
         </div>
       </div>

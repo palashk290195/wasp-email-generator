@@ -6,10 +6,14 @@ import type {
   UpdateTask,
   GetGptResponses,
   GetAllTasksByUser,
+  GetEmailTemplates,
+  UpdateChat
 } from 'wasp/server/operations';
 import { HttpError } from 'wasp/server';
 import { GeneratedSchedule } from './schedule';
 import OpenAI from 'openai';
+// import { promises as fs } from 'fs';
+// import path from 'path';
 
 const openai = setupOpenAI();
 function setupOpenAI() {
@@ -227,6 +231,200 @@ export const deleteTask: DeleteTask<Pick<Task, 'id'>, Task> = async ({ id }, con
 
   return task;
 };
+
+export const updateChat: UpdateChat<{
+  systemPrompt: string;
+  receiverProfileDetails: string;
+  senderProfileDetails: string;
+  purpose: string;
+  userMessage: string;
+  logoUrl: string;
+  userChatHistory: Array<{ role: string; content: string }>;
+  emailContent: string;
+}, { success: boolean; response: string }> = async (args, context) => {
+  if (!context.user) {
+    throw new HttpError(401);
+  }
+
+  const hours = 24;
+  try {
+    // check if openai is initialized correctly with the API key
+    if (openai instanceof Error) {
+      throw openai;
+    }
+
+    // const hasCredits = context.user.credits > 0;
+    // const hasValidSubscription =
+    //   !!context.user.subscriptionStatus &&
+    //   context.user.subscriptionStatus !== 'deleted' &&
+    //   context.user.subscriptionStatus !== 'past_due';
+    // const canUserContinue = hasCredits || hasValidSubscription;
+
+    // if (!canUserContinue) {
+    //   throw new HttpError(402, 'User has not paid or is out of credits');
+    // } else {
+    //   console.log('decrementing credits');
+    //   await context.entities.User.update({
+    //     where: { id: context.user.id },
+    //     data: {
+    //       credits: {
+    //         decrement: 1,
+    //       },
+    //     },
+    //   });
+    // }
+    const { systemPrompt, receiverProfileDetails, senderProfileDetails, purpose, userMessage, logoUrl, userChatHistory, emailContent } = args;
+    console.log('update chat start ', systemPrompt);
+    const messages = [
+      {
+        role: 'system',
+        content: `${systemPrompt}\nReceiver Profile: ${receiverProfileDetails}\nSender Profile: ${senderProfileDetails}\nPurpose: ${purpose}\nLogo URL: ${logoUrl}`,
+      },
+      ...userChatHistory.map(message => ({
+        role: message.role as 'user' | 'assistant',
+        content: message.content
+      })),
+      {
+        role: 'assistant',
+        content: emailContent,
+      },
+      {
+        role: 'user',
+        content: userMessage,
+      },
+    ];
+    console.log('update chat messages ', messages);
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o', // you can use any model here, e.g. 'gpt-3.5-turbo', 'gpt-4', etc.
+      messages: messages.map(msg => ({
+        role: msg.role as 'system' | 'user' | 'assistant',
+        content: msg.content
+      })),
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'search_unsplash',
+            description: 'Provide an image URL. Only call this function when there is a new requirement or replacement of image, don\'t call when image position needs to be changed.',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'The search query for the image'
+                }
+              },
+              required: ['query']
+            }
+          }
+        }
+      ],
+      temperature: 0,
+    });
+    console.log('update chat response ', response);
+
+    // const gptArgs = completion?.choices[0]?.message?.tool_calls?.[0]?.function.arguments;
+
+    // if (!gptArgs) {
+    //   throw new HttpError(500, 'Bad response from OpenAI');
+    // }
+
+    // console.log('gpt function call arguments: ', gptArgs);
+
+    // await context.entities.GptResponse.create({
+    //   data: {
+    //     user: { connect: { id: context.user.id } },
+    //     content: JSON.stringify(gptArgs),
+    //   },
+    // });
+
+    // return JSON.parse(gptArgs);
+    const message = response.choices[0].message;
+    let aiResponse: string = '';
+
+    if (message.tool_calls) {
+      console.log('update chat tool call ', message);
+      const toolCall = message.tool_calls[0];
+      if (toolCall.function.name === 'search_unsplash') {
+        const toolArgs = JSON.parse(toolCall.function.arguments);
+        const imageUrl = await searchUnsplash(toolArgs.query);
+        
+        // const functionCallResultMessage = {
+        //   role: 'tool',
+        //   content: JSON.stringify({
+        //     query: toolArgs.query,
+        //     image_url: imageUrl
+        //   }),
+        //   tool_call_id: toolCall.id
+        // };
+
+        // messages.push({ ...message, content: message.content ?? '' });
+        // messages.push(functionCallResultMessage);
+
+        // console.log('tool call messages ', messages);
+
+        const secondResponse = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            ...messages.map(msg => ({
+              role: msg.role as 'system' | 'user' | 'assistant',
+              content: msg.content
+            })),
+            {
+              role: 'assistant',
+              content: message.content ?? '',
+              function_call: {
+                name: 'search_unsplash',
+                arguments: JSON.stringify({
+                  query: toolArgs.query
+                })
+              }
+            },
+            {
+              role: 'function',
+              name: 'search_unsplash',
+              content: JSON.stringify({
+                query: toolArgs.query,
+                image_url: imageUrl
+              })
+            }
+          ],
+          temperature: 0
+        });
+
+        aiResponse = secondResponse.choices[0].message.content ?? '';
+      }
+    } else {
+      console.log('update chat no tool call ', message);
+      aiResponse = message.content ?? '';
+    }
+    // Note: You might want to update the chat history in the database or state management here
+
+    // TODO Save chat command to database
+    // await context.entities.ChatCommand.create({
+    //   data: {
+    //     user: { connect: { id: context.user.id } },
+    //     command: userMessage,
+    //     response: aiResponse,
+    //   }
+    // });
+    console.log('update chat final return ', aiResponse);
+    return { success: true, response: aiResponse };
+  } catch (error: any) {
+    // if (!context.user.subscriptionStatus && error?.statusCode != 402) {
+    //   await context.entities.User.update({
+    //     where: { id: context.user.id },
+    //     data: {
+    //       credits: {
+    //         increment: 1,
+    //       },
+    //     },
+    //   });
+    // }
+    console.error('Error in updateChat: ', error);
+    throw new HttpError(500, 'An unexpected error occured: ${error.message}');
+  }
+};
 //#endregion
 
 //#region Queries
@@ -258,4 +456,29 @@ export const getAllTasksByUser: GetAllTasksByUser<void, Task[]> = async (_args, 
     },
   });
 };
+
+export const getEmailTemplates: GetEmailTemplates<void, string[]> = async (_args, context) => {
+  if (!context.user) {
+    throw new HttpError(401);
+  }
+
+  return ["EBooks.html", "Elephants.html", "Fashion Gallery.html", "Flash Sale.html", "Grand Opening.html", "Outdoors.html", "Sports Equipment.html"];
+  
+  // try {
+  //   const templatesDir = path.join(__dirname, '..', '..', '..', 'public', 'templates');
+  //   const files = await fs.readdir(templatesDir);
+  //   console.log("files ", files);
+  //   return files.filter((file: string) => path.extname(file).toLowerCase() === '.html');
+  // } catch (error) {
+  //   console.error('Error reading template directory:', error);
+  //   throw new HttpError(500, 'Unable to fetch email templates');
+  // }
+};
+
+async function searchUnsplash(query: string): Promise<string> {
+  const response = await fetch(`https://api.unsplash.com/search/photos?query=${query}&client_id=${process.env.UNSPLASH_ACCESS_KEY}`);
+  const data = await response.json();
+  return data.results[0].urls.regular;
+}
+
 //#endregion
