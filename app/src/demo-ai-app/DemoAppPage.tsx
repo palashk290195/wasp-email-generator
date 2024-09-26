@@ -4,7 +4,7 @@ import {
   updateChat
 } from 'wasp/client/operations';
 
-import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { CgSpinner } from 'react-icons/cg';
 
 declare global {
@@ -365,11 +365,44 @@ function EmailPreview({ content, isLoading }: { content: string, isLoading: bool
       const iframe = iframeRef.current;
       iframe.srcdoc = content;
 
-      //Adjust iframe height to match content
-      iframe.onload =() => {
+      iframe.onload = () => {
         iframe.style.height = iframe.contentWindow?.document.body.scrollHeight + 'px';
       };
     }
+  }, [content]);
+
+  const handleCopyContent = useCallback(() => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      const iframe = iframeRef.current;
+      if (iframe && iframe.contentWindow) {
+        const selection = iframe.contentWindow.getSelection();
+        const range = iframe.contentWindow.document.createRange();
+        range.selectNodeContents(iframe.contentWindow.document.body);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        try {
+          iframe.contentWindow.document.execCommand('copy');
+          alert('Content copied to clipboard!');
+        } catch (err) {
+          console.error('Failed to copy text: ', err);
+          alert('Failed to copy content. Please try manually selecting and copying.');
+        } finally {
+          selection?.removeAllRanges();
+        }
+      }    
+    }
+  }, []);
+
+  const handleDownloadHTML = useCallback(() => {
+    const blob = new Blob([content], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'email_template.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }, [content]);
 
   if (isLoading) {
@@ -381,12 +414,29 @@ function EmailPreview({ content, isLoading }: { content: string, isLoading: bool
   }
 
   return (
-    <iframe
-      ref={iframeRef}
-      title="Email Preview"
-      className="w-full border-0"
-      style={{ minHeight: '400px'}}
-    />
+    <div>
+      <iframe
+        ref={iframeRef}
+        title="Email Preview"
+        className="w-full border-0"
+        style={{ minHeight: '400px'}}
+      />
+      {content && (
+        <div className="mt-4 flex justify-end space-x-4">
+          <button
+            onClick={handleCopyContent}
+            className="min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none"
+          >
+            Copy Content
+          </button>
+          <button
+            onClick={handleDownloadHTML}
+            className="min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none"
+          >
+            Download HTML
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
-
