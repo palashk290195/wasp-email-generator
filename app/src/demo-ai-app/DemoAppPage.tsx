@@ -22,6 +22,7 @@ export default function DemoAppPage() {
   const [isEmailUpdating, setIsEmailUpdating] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string>('')
   const [isCloudinaryLoaded, setIsCloudinaryLoaded] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<Array<{name: string, url: string}>>([]);
 
   const handleUpdateChat = useCallback(async () => {
     setIsEmailUpdating(true); //Start loading in Email preview screen
@@ -60,15 +61,34 @@ const handleLogoUpload = useCallback((error: any, result: any) => {
   }
 }, []);
 
+const handleTemplateUpload = useCallback((error: any, result: any) => {
+  if (!error && result && result.event === "success") {
+    console.log('Template uploaded successfully:', result.info);
+    setCustomTemplates(prev => [...prev, {name: result.info.original_filename, url: result.info.secure_url}]);
+  }
+}, []);
+
 
 const handlePreviewTemplate = useCallback((template: string) => {
-  fetch(`/templates/${template}`)
-    .then((response) => response.text())
-    .then((html) => {
-      setEmailContent(html);
-    })
-    .catch((error) => console.error("Error fetching HTML:", error));
-}, []);
+  const customTemplate = customTemplates.find(t => t.name === template);
+  if (customTemplate) {
+    // This is a custom template uploaded to Cloudinary
+    fetch(customTemplate.url)
+      .then((response) => response.text())
+      .then((html) => {
+        setEmailContent(html);
+      })
+      .catch((error) => console.error("Error fetching custom template:", error));
+  } else {
+    // This is a pre-existing template
+    fetch(`/templates/${template}`)
+      .then((response) => response.text())
+      .then((html) => {
+        setEmailContent(html);
+      })
+      .catch((error) => console.error("Error fetching pre-existing template:", error));
+  }
+}, [customTemplates]);
 
 useEffect(() => {
   if (typeof window !== 'undefined' && !window.cloudinary) {
@@ -112,14 +132,17 @@ return (
           </div>
           )}
           {isCloudinaryLoaded ? (
+            <>
             <LogoUploader onUpload={handleLogoUpload} />
+            <TemplateUploader onUpload={handleTemplateUpload} />
+            </>
           ) : (
             <div>Loading Cloudinary...</div>
           )}
           {emailTemplates.data && (
             <div className="mb-6">
               <TemplateSelector
-                templates={emailTemplates.data}
+                templates={[...emailTemplates.data, ...customTemplates.map(t => t.name)]}
                 onPreview={handlePreviewTemplate}
               />
             </div>
@@ -245,9 +268,71 @@ function LogoUploader({ onUpload }: { onUpload: (error: any, result: any) => voi
   );
 }
 
+function TemplateUploader({ onUpload }: { onUpload: (error: any, result: any) => void }) {
+  const [widget, setWidget] = useState<any>(null);
 
-function TemplateSelector({ templates, onPreview }: {templates: string[], onPreview: (template: string) => void}) {
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.cloudinary) {
+      try {
+        const widgetInstance = window.cloudinary.createUploadWidget(
+          {
+            cloudName: import.meta.env.REACT_APP_CLOUDINARY_CLOUD_NAME,
+            uploadPreset: import.meta.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET,
+            sources: ['local'],
+            multiple: false,
+            maxFiles: 1,
+            resourceType: 'raw',
+            allowedFormats: ['html'],
+          },
+          (error: any, result: any) => {
+            if (error) {
+              console.error('Widget error:', error);
+            }
+            if (result && result.event === "success") {
+              console.log('Upload successful:', result.info.secure_url);
+            }
+            onUpload(error, result);
+          }
+        );
+        setWidget(widgetInstance);
+      } catch (error) {
+        console.error('Error creating widget:', error);
+      }
+    } else {
+      console.error('Cloudinary not available');
+    }
+  }, [onUpload]);
+
+  const openWidget = useCallback(() => {
+    if (widget) {
+      try {
+        widget.open();
+      } catch (error) {
+        console.error('Error opening widget:', error);
+      }
+    } else {
+      console.error('Widget not initialized');
+    }
+  }, [widget]);
+
+  return (
+    <div className="mb-6">
+      <button
+        onClick={openWidget}
+        className='min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none'
+      >
+        Upload HTML Template
+      </button>
+    </div>
+  );
+}
+
+function TemplateSelector({ templates, onPreview }: {
+  templates: string[], 
+  onPreview: (template: string) => void
+}) {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+
   return (
     <div className='flex items-center gap-3'>
       <select
