@@ -6,6 +6,8 @@ import {
 
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { CgSpinner } from 'react-icons/cg';
+import GrapesJsEditor from './GrapesJsEditor';
+import 'grapesjs/dist/css/grapes.min.css';
 
 declare global {
   interface Window {
@@ -23,6 +25,7 @@ export default function DemoAppPage() {
   const [logoUrl, setLogoUrl] = useState<string>('')
   const [isCloudinaryLoaded, setIsCloudinaryLoaded] = useState(false);
   const [customTemplates, setCustomTemplates] = useState<Array<{name: string, url: string}>>([]);
+  const [isGrapesJsEditorOpen, setIsGrapesJsEditorOpen] = useState(false);
 
   const handleUpdateChat = useCallback(async () => {
     setIsEmailUpdating(true); //Start loading in Email preview screen
@@ -90,6 +93,19 @@ const handlePreviewTemplate = useCallback((template: string) => {
   }
 }, [customTemplates]);
 
+const handleEditWithGrapesJs = useCallback(() => {
+  setIsGrapesJsEditorOpen(true);
+}, []);
+
+const handleGrapesJsSave = useCallback((html: string) => {
+  setEmailContent(html);
+  setIsGrapesJsEditorOpen(false);
+}, []);
+
+const handleGrapesJsClose = useCallback(() => {
+  setIsGrapesJsEditorOpen(false);
+}, []);
+
 useEffect(() => {
   if (typeof window !== 'undefined' && !window.cloudinary) {
     console.log('Cloudinary script not found, attempting to load...');
@@ -127,14 +143,14 @@ return (
       <div className='w-1/2'>
         <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
           {logoUrl && (
-          <div className='mb-4 flex justify-center'>
-            <img src={logoUrl} alt="Uploaded logo" className="h-20 object-contain" />
-          </div>
+            <div className='mb-4 flex justify-center'>
+              <img src={logoUrl} alt="Uploaded logo" className="h-20 object-contain" />
+            </div>
           )}
           {isCloudinaryLoaded ? (
             <>
-            <LogoUploader onUpload={handleLogoUpload} />
-            <TemplateUploader onUpload={handleTemplateUpload} />
+              <LogoUploader onUpload={handleLogoUpload} />
+              <TemplateUploader onUpload={handleTemplateUpload} />
             </>
           ) : (
             <div>Loading Cloudinary...</div>
@@ -164,7 +180,7 @@ return (
           </div>
           <div className='mt-6'>
             <h3 className='text-lg font-semibold mb-2'>Chat History</h3>
-          <div className='max-h-60 overflow-y-auto'>
+            <div className='max-h-60 overflow-y-auto'>
               {chatHistory.map((message, index) => (
                 message.role === 'user' ? (
                   <div key={index} className="mb-2 text-blue-600">
@@ -181,31 +197,32 @@ return (
               Clear History
             </button>
           </div>
-          {/* <div>
-            <NewTaskForm handleCreateTask={createTask} />
-          </div> */}
         </div>
       </div>
       <div className='w-1/2'>
         <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
           <h3 className='text-2xl font-semibold mb-4'>HTML Email Preview</h3>
           <div className='bg-white p-4 rounded-md shadow-md'>
-            {/* <div 
-              style={{ 
-                width: '100%', 
-                maxWidth: '100%', 
-                overflow: 'auto',
-                wordWrap: 'break-word' 
-              }} 
-              dangerouslySetInnerHTML={{ __html: emailContent }} 
-            /> */}
-            <EmailPreview content={emailContent} isLoading={isEmailUpdating}/>
+            <EmailPreview 
+              content={emailContent} 
+              isLoading={isEmailUpdating}
+              onEdit={handleEditWithGrapesJs}
+            />
           </div>
         </div>
       </div>
     </div>
+    {isGrapesJsEditorOpen && (
+      <div className="fixed inset-0 z-50 bg-white">
+        <GrapesJsEditor
+          initialContent={emailContent}
+          onSave={handleGrapesJsSave}
+          onClose={handleGrapesJsClose}
+        />
+      </div>
+    )}
   </div>
-  );
+);
 }
 
 
@@ -357,7 +374,7 @@ function TemplateSelector({ templates, onPreview }: {
   );
 }
 
-function EmailPreview({ content, isLoading }: { content: string, isLoading: boolean}) {
+function EmailPreview({ content, isLoading, onEdit }: { content: string, isLoading: boolean, onEdit: () => void }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -434,6 +451,12 @@ function EmailPreview({ content, isLoading }: { content: string, isLoading: bool
             className="min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none"
           >
             Download HTML
+          </button>
+          <button
+            onClick={onEdit}
+            className="min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none"
+          >
+            Edit
           </button>
         </div>
       )}
