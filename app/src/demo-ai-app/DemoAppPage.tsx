@@ -135,13 +135,13 @@ if (emailTemplates.isLoading) {
 }
 
 return (
-  <div className='container mx-auto px-4 py-8'>
+  <div className='mx-auto py-8 h-screen flex flex-col'>
     <h1 className='text-4xl font-bold mb-8'>
       <span className='text-yellow-500'>AI</span> HTML Email Generator
     </h1>
-    <div className='flex space-x-8'>
-      <div className='w-1/2'>
-        <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
+    <div className='flex gap-4 flex-grow overflow-hidden'>
+      <div className='w-[49%] flex flex-col'>
+        <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6 flex flex-col h-full overflow-auto'>
           {logoUrl && (
             <div className='mb-4 flex justify-center'>
               <img src={logoUrl} alt="Uploaded logo" className="h-20 object-contain" />
@@ -178,9 +178,9 @@ return (
               Update Email
             </button>
           </div>
-          <div className='mt-6'>
+          <div className='mt-6 flex-grow overflow-auto'>
             <h3 className='text-lg font-semibold mb-2'>Chat History</h3>
-            <div className='max-h-60 overflow-y-auto'>
+            <div className='max-h-full overflow-y-auto'>
               {chatHistory.map((message, index) => (
                 message.role === 'user' ? (
                   <div key={index} className="mb-2 text-blue-600">
@@ -199,14 +199,23 @@ return (
           </div>
         </div>
       </div>
-      <div className='w-1/2'>
-        <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6'>
-          <h3 className='text-2xl font-semibold mb-4'>HTML Email Preview</h3>
-          <div className='bg-white p-4 rounded-md shadow-md'>
+      <div className='w-[49%] flex flex-col'>
+        <div className='border rounded-3xl border-gray-900/10 dark:border-gray-100/10 p-6 flex flex-col h-full'>
+          <div className='flex justify-between items-center mb-4'>
+            <h3 className='text-2xl font-semibold'>HTML Email Preview</h3>
+            {emailContent && (
+              <button
+                onClick={handleEditWithGrapesJs}
+                className="min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          <div className='bg-white p-4 rounded-md shadow-md flex-grow overflow-hidden'>
             <EmailPreview 
               content={emailContent} 
               isLoading={isEmailUpdating}
-              onEdit={handleEditWithGrapesJs}
             />
           </div>
         </div>
@@ -223,7 +232,6 @@ return (
     )}
   </div>
 );
-}
 
 
 function LogoUploader({ onUpload }: { onUpload: (error: any, result: any) => void }) {
@@ -374,17 +382,13 @@ function TemplateSelector({ templates, onPreview }: {
   );
 }
 
-function EmailPreview({ content, isLoading, onEdit }: { content: string, isLoading: boolean, onEdit: () => void }) {
+function EmailPreview({ content, isLoading}: { content: string, isLoading: boolean}) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     if (iframeRef.current) {
       const iframe = iframeRef.current;
       iframe.srcdoc = content;
-
-      iframe.onload = () => {
-        iframe.style.height = iframe.contentWindow?.document.body.scrollHeight + 'px';
-      };
     }
   }, [content]);
 
@@ -424,22 +428,23 @@ function EmailPreview({ content, isLoading, onEdit }: { content: string, isLoadi
 
   if (isLoading) {
     return (
-      <div className="w-full h-[400px] flex items-center justify-center bg-gray-100">
+      <div className="w-full h-full flex items-center justify-center bg-gray-100">
         <CgSpinner className="animate-spin text-4xl text-yellow-500" />
       </div>
     );
   }
 
   return (
-    <div>
-      <iframe
-        ref={iframeRef}
-        title="Email Preview"
-        className="w-full border-0"
-        style={{ minHeight: '400px'}}
-      />
+    <div className="flex flex-col h-full">
+      <div className="flex-grow overflow-auto">
+        <iframe
+          ref={iframeRef}
+          title="Email Preview"
+          className="w-full h-full border-0"
+        />
+      </div>
       {content && (
-        <div className="mt-4 flex justify-end space-x-4">
+        <div className="mt-4 flex justify-end space-x-4 sticky bottom-0 bg-white p-2 border-t">
           <button
             onClick={handleCopyContent}
             className="min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none"
@@ -452,14 +457,9 @@ function EmailPreview({ content, isLoading, onEdit }: { content: string, isLoadi
           >
             Download HTML
           </button>
-          <button
-            onClick={onEdit}
-            className="min-w-[7rem] font-medium text-gray-800/90 bg-yellow-50 shadow-md ring-1 ring-inset ring-slate-200 py-2 px-4 rounded-md hover:bg-yellow-100 duration-200 ease-in-out focus:outline-none focus:shadow-none hover:shadow-none"
-          >
-            Edit
-          </button>
         </div>
       )}
     </div>
   );
+}
 }
