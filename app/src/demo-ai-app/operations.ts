@@ -238,7 +238,11 @@ export const updateChat: UpdateChat<{
   senderProfileDetails: string;
   purpose: string;
   userMessage: string;
-  logoUrl: string;
+  primaryColor: string,
+  secondaryColor: string,
+  brandTone: string, 
+  logoUrl: string,
+  otherDetails: string,
   userChatHistory: Array<{ role: string; content: string }>;
   emailContent: string;
 }, { success: boolean; response: string }> = async (args, context) => {
@@ -257,7 +261,7 @@ export const updateChat: UpdateChat<{
     // const hasValidSubscription =
     //   !!context.user.subscriptionStatus &&
     //   context.user.subscriptionStatus !== 'deleted' &&
-    //   context.user.subscriptionStatus !== 'past_due';
+    //   context.user.subscriptionStatus !== 'past_due'
     // const canUserContinue = hasCredits || hasValidSubscription;
 
     // if (!canUserContinue) {
@@ -273,12 +277,15 @@ export const updateChat: UpdateChat<{
     //     },
     //   });
     // }
-    const { systemPrompt, receiverProfileDetails, senderProfileDetails, purpose, userMessage, logoUrl, userChatHistory, emailContent } = args;
-    console.log('update chat start ', systemPrompt);
+    const { systemPrompt, receiverProfileDetails, senderProfileDetails, purpose, userMessage, primaryColor, secondaryColor, brandTone, logoUrl, otherDetails, userChatHistory, emailContent } = args;
+    console.log("primary color 2 ", primaryColor);
+    console.log("logoUrl 2 ", logoUrl);
+    console.log("systemPrompt 2 ", systemPrompt);
+    console.log('update chat start Palash ', systemPrompt, receiverProfileDetails, senderProfileDetails, purpose, userMessage, primaryColor, secondaryColor, brandTone, logoUrl, otherDetails, userChatHistory, emailContent );
     const messages = [
       {
         role: 'system',
-        content: `${systemPrompt}\nReceiver Profile: ${receiverProfileDetails}\nSender Profile: ${senderProfileDetails}\nPurpose: ${purpose}\nLogo URL: ${logoUrl}`,
+        content: `${systemPrompt}\nReceiver Profile: ${receiverProfileDetails}\nSender Profile: ${senderProfileDetails}\nPurpose: ${purpose}\n\n Brand details to generate email: Logo URL: ${logoUrl} \n Primary color: ${primaryColor} \n Secondary color:  ${secondaryColor} \n Brand Tone: ${brandTone} \n Other details: ${otherDetails}`,
       },
       ...userChatHistory.map(message => ({
         role: message.role as 'user' | 'assistant',

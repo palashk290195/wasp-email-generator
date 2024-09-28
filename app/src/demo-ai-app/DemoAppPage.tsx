@@ -4,7 +4,7 @@ import {
   updateChat
 } from 'wasp/client/operations';
 
-import { useRef, useCallback, useEffect, useState } from 'react';
+import React, { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import { CgSpinner } from 'react-icons/cg';
 import GrapesJsEditor from './GrapesJsEditor';
 import 'grapesjs/dist/css/grapes.min.css';
@@ -14,6 +14,67 @@ declare global {
     cloudinary: any;
   }
 }
+
+const BrandSync = React.memo(({
+  primaryColor, onPrimaryColorChange,
+  secondaryColor, onSecondaryColorChange,
+  logoUrl, setLogoUrl,
+  brandTone, onBrandToneChange,
+  otherDetails, onOtherDetailsChange
+}: {
+  primaryColor: string;
+  onPrimaryColorChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  secondaryColor: string;
+  onSecondaryColorChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  logoUrl: string;
+  setLogoUrl: (url: string) => void;
+  brandTone: string;
+  onBrandToneChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  otherDetails: string;
+  onOtherDetailsChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+}) => {
+  return (
+    <div className="mb-6">
+      <h3 className="text-lg font-semibold mb-2">Brand Details</h3>
+      <div className="space-y-2">
+        <input
+          type="text"
+          placeholder="Primary Color"
+          value={primaryColor}
+          onChange={onPrimaryColorChange}
+          className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
+        />
+        <input
+          type="text"
+          placeholder="Secondary Color"
+          value={secondaryColor}
+          onChange={onSecondaryColorChange}
+          className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
+        />
+        <input
+          type="text"
+          placeholder="Logo URL"
+          value={logoUrl}
+          onChange={(e) => setLogoUrl(e.target.value)}
+          className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
+        />
+        <input
+          type="text"
+          placeholder="Brand Tone"
+          value={brandTone}
+          onChange={onBrandToneChange}
+          className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
+        />
+        <textarea
+          placeholder="Other Details"
+          value={otherDetails}
+          onChange={onOtherDetailsChange}
+          className='p-2 text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
+        />
+      </div>
+    </div>
+  );
+});
 
 export default function DemoAppPage() {
   const [emailContent, setEmailContent] = useState<string>('');
@@ -32,20 +93,36 @@ export default function DemoAppPage() {
   const [isGrapesJsEditorOpen, setIsGrapesJsEditorOpen] = useState(false);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
 
+  // Add this new function
+  const handleSyncWithBrand = useCallback(() => {
+    console.log("Syncing with brand...");
+    console.log("Primary color:", primaryColor);
+    console.log("Secondary color:", secondaryColor);
+    console.log("Brand tone:", brandTone);
+    console.log("Logo URL:", logoUrl);
+    console.log("Other details:", otherDetails);
+    setUserMessage("Please update the email template with the brand details I've provided.");
+    handleUpdateChat();
+  }, [primaryColor, secondaryColor, brandTone, logoUrl, otherDetails]);
+
   const handleUpdateChat = useCallback(async () => {
     setIsEmailUpdating(true); //Start loading in Email preview screen
     try {
       const result = await updateChat({
-        systemPrompt: 'You are an AI assistant that helps with email template modifications. Stick to only responsive HTML email responses. Nothing else at the start or the end, not even html tags',
+        systemPrompt: 'You are an AI assistant that helps with email template modifications. Stick to only responsive HTML email responses. Nothing else at the start or the end, not even html tags. Retain the original structure of the email template provided to you.',
         receiverProfileDetails: 'Default receiver',
         senderProfileDetails: 'Default sender',
         purpose: 'Email modification',
         userMessage,
-        logoUrl: logoUrl,
+        primaryColor,
+        secondaryColor,
+        brandTone,
+        logoUrl,
+        otherDetails,
         userChatHistory: chatHistory.filter(message => message.role === 'user'),
         emailContent
       });
-
+  
       if (result.success) {
         setEmailContent(result.response);
         setChatHistory(prev => [...prev, {role: 'user', content: userMessage}, {role: 'assistant', content: result.response}]);
@@ -56,23 +133,10 @@ export default function DemoAppPage() {
     } finally {
       setIsEmailUpdating(false); //Stop loading regardless of success or failure
     }
-}, [userMessage, selectedTemplate]);
-
-// Add this new function
-const handleSyncWithBrand = () => {
-  // Implement the logic to sync with brand
-  console.log('Syncing with brand...');
-};
+  }, [userMessage, emailContent, chatHistory, primaryColor, secondaryColor, brandTone, logoUrl, otherDetails]);
 
 const handleClearHistory = useCallback(() => {
   setChatHistory([]);
-}, []);
-
-const handleLogoUpload = useCallback((error: any, result: any) => {
-  if (!error && result && result.event === "success") {
-    console.log('Done! Here is the image info: ', result.info);
-    setLogoUrl(result.info.secure_url);
-  }
 }, []);
 
 const handleTemplateUpload = useCallback((error: any, result: any) => {
@@ -115,6 +179,22 @@ const handleGrapesJsSave = useCallback((html: string) => {
 
 const handleGrapesJsClose = useCallback(() => {
   setIsGrapesJsEditorOpen(false);
+}, []);
+
+const handlePrimaryColorChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  setPrimaryColor(e.target.value);
+}, []);
+
+const handleSecondaryColorChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  setSecondaryColor(e.target.value);
+}, []);
+
+const handleBrandToneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  setBrandTone(e.target.value);
+}, []);
+
+const handleOtherDetailsChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  setOtherDetails(e.target.value);
 }, []);
 
 useEffect(() => {
@@ -179,15 +259,15 @@ return (
           )}
           <BrandSync 
             primaryColor={primaryColor}
-            setPrimaryColor={setPrimaryColor}
+            onPrimaryColorChange={handlePrimaryColorChange}
             secondaryColor={secondaryColor}
-            setSecondaryColor={setSecondaryColor}
+            onSecondaryColorChange={handleSecondaryColorChange}
             logoUrl={logoUrl}
             setLogoUrl={setLogoUrl}
             brandTone={brandTone}
-            setBrandTone={setBrandTone}
+            onBrandToneChange={handleBrandToneChange}
             otherDetails={otherDetails}
-            setOtherDetails={setOtherDetails}
+            onOtherDetailsChange={handleOtherDetailsChange}
           />
           <button
             onClick={handleSyncWithBrand}
@@ -196,17 +276,17 @@ return (
             Sync with Brand
           </button>
           <div className='flex flex-col gap-3'>
-          <div className='flex-grow flex flex-col overflow-hidden p-4'>
-              <h3 className='text-lg font-semibold mb-2'>Chat History</h3>
+            <div className='flex-grow flex flex-col overflow-hidden p-4' style={{ maxHeight: '200px' }}>
               <div className='flex-grow overflow-y-auto mb-4' ref={chatHistoryRef}>
-                {chatHistory.map((message, index) => (
-                  <div key={index} className={`mb-2 ${message.role === 'user' ? 'text-blue-600' : 'text-green-600'}`}>
-                    <strong>{message.role === 'user' ? 'You: ' : 'AI: '}</strong>
-                    {message.content}
-                  </div>
-                ))}
+                {chatHistory
+                  .filter(message => message.role === 'user')
+                  .map((message, index) => (
+                    <div key={index} className='mb-2 text-blue-600'>
+                      <strong>You: </strong>
+                      {message.content}
+                    </div>
+                  ))}
               </div>
-              
             </div>
           </div>
           <div className='flex-shrink-0 mt-auto sticky bottom-0 bg-white p-4 border-t border-gray-200'>
@@ -267,63 +347,6 @@ return (
     )}
   </div>
 );
-
-
-function BrandSync({
-  primaryColor, setPrimaryColor,
-  secondaryColor, setSecondaryColor,
-  logoUrl, setLogoUrl,
-  brandTone, setBrandTone,
-  otherDetails, setOtherDetails
-}: {
-  primaryColor: string, setPrimaryColor: (primaryColor: string) => void,
-  secondaryColor: string, setSecondaryColor: (secondaryColor: string) => void,
-  logoUrl: string, setLogoUrl: (logoUrl: string) => void,
-  brandTone: string, setBrandTone: (brandTone: string) => void,
-  otherDetails: string, setOtherDetails: (otherDetails: string) => void
-}) {
-  return (
-    <div className="mb-6">
-      <h3 className="text-lg font-semibold mb-2">Brand Details</h3>
-      <div className="space-y-2">
-        <input
-          type="text"
-          placeholder="Primary Color"
-          value={primaryColor}
-          onChange={(e) => setPrimaryColor(e.target.value)}
-          className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
-        />
-        <input
-          type="text"
-          placeholder="Secondary Color"
-          value={secondaryColor}
-          onChange={(e) => setSecondaryColor(e.target.value)}
-          className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
-        />
-        <input
-          type="text"
-          placeholder="Logo URL"
-          value={logoUrl}
-          onChange={(e) => setLogoUrl(e.target.value)}
-          className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
-        />
-        <input
-          type="text"
-          placeholder="Brand Tone"
-          value={brandTone}
-          onChange={(e) => setBrandTone(e.target.value)}
-          className='text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
-        />
-        <textarea
-          placeholder="Other Details"
-          value={otherDetails}
-          onChange={(e) => setOtherDetails(e.target.value)}
-          className='p-2 text-sm text-gray-600 w-full rounded-md border border-gray-200 bg-[#f5f0ff] shadow-md focus:outline-none focus:border-transparent focus:shadow-none duration-200 ease-in-out hover:shadow-none'
-        />
-      </div>
-    </div>
-  );
-}
 
 function TemplateUploader({ onUpload }: { onUpload: (error: any, result: any) => void }) {
   const [widget, setWidget] = useState<any>(null);
