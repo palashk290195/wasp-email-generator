@@ -9,7 +9,7 @@ For more details, check READMEs of each respective directory!
 1. curl -sSL https://get.wasp-lang.dev/installer.sh | sh
 2. wasp version
 3. cd app
-4. wasp start db
+4. wasp start db (needs Docker to be running)
 5. wasp db migrate-dev
 6. cp .env.server.example .env.server
 7. wasp start
